@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>AirQuality AI | Clean Aesthetic Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #0a0f1e;
+            color: white;
+            overflow-x: hidden;
+        }
+        
+        .blob {
+            position: fixed;
+            width: 50vw;
+            height: 50vw;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.4;
+            z-index: -2;
+            animation: floatBlob 22s infinite alternate;
+        }
+        
+        .blob-1 {
+            background: radial-gradient(circle, #10b981, #06b6d4);
+            top: -20vh;
+            left: -10vw;
+        }
+        
+        .blob-2 {
+            background: radial-gradient(circle, #f59e0b, #ef4444);
+            bottom: -10vh;
+            right: -5vw;
+        }
+        
+        @keyframes floatBlob {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+            100% {
+                transform: translate(5%, 8%) scale(1.2);
+            }
+        }
+        
+        .glass-nav {
+            background: rgba(10, 20, 30, 0.7);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+            list-style: none;
+        }
+        
+        .nav-links a {
+            color: #e2e8f0;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        
+        .nav-links a:hover,
+        .nav-links a.active {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+        
+        .glass-card {
+            background: rgba(15, 25, 35, 0.55);
+            backdrop-filter: blur(14px);
+            border-radius: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: 0.3s;
+        }
+        
+        .glass-card:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            background: rgba(20, 30, 42, 0.65);
+        }
+        
+        .radial-gauge {
+            position: relative;
+            width: 260px;
+            height: 260px;
+            margin: 0 auto;
+        }
+        
+        .gauge-center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        
+        .live-badge {
+            background: rgba(16, 185, 129, 0.2);
+            padding: 0.25rem 1rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            border: 1px solid #10b981;
+            animation: pulseGreen 1.5s infinite;
+            display: inline-block;
+        }
+        
+        @keyframes pulseGreen {
+            0% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+        
+        .safety-badge {
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .safety-safe {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid #22c55e;
+            color: #22c55e;
+        }
+        
+        .safety-unsafe {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+        
+        .page {
+            display: none;
+        }
+        
+        .page.active {
+            display: block;
+        }
+        
+        #map-container {
+            height: 60vh;
+            border-radius: 2rem;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+        
+        @media (max-width: 700px) {
+            .nav-container {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+        
+        .param-value {
+            font-family: monospace;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 0.2rem 0.6rem;
+            border-radius: 1rem;
+            display: inline-block;
+        }
+        /* Chat Widget */
+        
+        .chat-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 380px;
+            max-width: calc(100vw - 40px);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-header {
+            background: rgba(16, 185, 129, 0.95);
+            backdrop-filter: blur(8px);
+            border-radius: 2rem 2rem 0 0;
+            padding: 12px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+        }
+        
+        .chat-body {
+            background: rgba(15, 25, 35, 0.98);
+            backdrop-filter: blur(12px);
+            border-radius: 0 0 2rem 2rem;
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            max-height: 420px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-messages {
+            height: 320px;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .message {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+        
+        .user-message {
+            background: #10b981;
+            align-self: flex-end;
+            color: white;
+        }
+        
+        .bot-message {
+            background: rgba(255, 255, 255, 0.15);
+            align-self: flex-start;
+            color: #e2e8f0;
+        }
+        
+        .chat-input-area {
+            display: flex;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 2rem;
+            padding: 8px 14px;
+            color: white;
+            outline: none;
+        }
+        
+        .chat-send {
+            background: #10b981;
+            border: none;
+            border-radius: 2rem;
+            padding: 8px 18px;
+            margin-left: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .chat-closed .chat-body {
+            display: none;
+        }
+        /* New explanation card style */
+        
+        .explanation-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 1rem;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+        
+        .explanation-title {
+            font-weight: bold;
+            color: #10b981;
+            font-size: 0.9rem;
+        }
+        
+        .explanation-desc {
+            font-size: 0.8rem;
+            color: #cbd5e1;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <nav class="glass-nav">
+        <div class="nav-container">
+            <div class="logo text-xl font-bold">🌍 AirQuality AI</div>
+            <ul class="nav-links">
+                <li><a data-page="dashboard">📊 Dashboard</a></li>
+                <li><a data-page="map">🗺️ Live Map</a></li>
+                <li><a data-page="forecast">📈 7‑Day Forecast</a></li>
+                <li><a data-page="health">❤️ Health Profile</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- DASHBOARD PAGE - Redesigned for clarity -->
+    <div id="dashboard" class="page active container mx-auto px-4 py-6 max-w-7xl">
+        <!-- Header with title and live badge -->
+        <div class="flex flex-wrap justify-between items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">Real‑time AQI Intelligence</h1>
+                <p class="text-gray-300 text-sm">Auto‑sensed data + Ensemble ML + AI Chat</p>
+            </div>
+            <div class="live-badge">🛰️ Live Stream Active</div>
+        </div>
+
+        <!-- Row 1: Gauge & Live Sensor Feed (side by side) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+            <!-- Left: Radial Gauge + Safety -->
+            <div class="glass-card p-6 flex flex-col items-center text-center">
+                <div class="radial-gauge">
+                    <canvas id="aqiGaugeCanvas" width="260" height="260"></canvas>
+                    <div class="gauge-center">
+                        <span id="predictedAQIValue" class="text-5xl font-black">---</span>
+                        <span class="text-xs opacity-80">Predicted AQI</span>
+                    </div>
+                </div>
+                <div id="aqiCategoryBadge" class="mt-4 px-4 py-2 rounded-full bg-white/10 text-sm">Loading...</div>
+                <div id="safetyIndicator" class="safety-badge mt-3"><span>✅</span><span>---</span></div>
+                <div class="text-xs text-gray-400 mt-3"><span id="updateTimestamp"></span></div>
+            </div>
+
+            <!-- Right: Live Sensor Feed (clean grid) -->
+            <div class="glass-card p-6">
+                <h2 class="text-xl font-semibold border-b border-white/20 pb-2 mb-4">🌡️ Live Environmental Feed</h2>
+                <div class="grid grid-cols-2 gap-y-3 gap-x-4">
+                    <div class="flex justify-between items-center"><span>PM2.5</span><span id="pm25Value" class="param-value">-- µg/m³</span></div>
+                    <div class="flex justify-between items-center"><span>PM10</span><span id="pm10Value" class="param-value">-- µg/m³</span></div>
+                    <div class="flex justify-between items-center"><span>NO₂</span><span id="no2Value" class="param-value">-- µg/m³</span></div>
+                    <div class="flex justify-between items-center"><span>CO</span><span id="coValue" class="param-value">-- mg/m³</span></div>
+                    <div class="flex justify-between items-center"><span>Temperature</span><span id="tempValue" class="param-value">-- °C</span></div>
+                    <div class="flex justify-between items-center"><span>Humidity</span><span id="humidityValue" class="param-value">-- %</span></div>
+                    <div class="flex justify-between items-center"><span>Wind Speed</span><span id="windValue" class="param-value">-- kph</span></div>
+                    <div class="flex justify-between items-center"><span>Uncertainty</span><span id="uncertaintyValue" class="param-value">±--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: 24‑Hour Forecast (full width) -->
+        <div class="glass-card p-6 mb-10">
+            <h3 class="text-xl font-semibold mb-3 flex items-center gap-2">📈 24‑Hour AQI Forecast <span class="text-xs text-gray-400">(with uncertainty band)</span></h3>
+            <canvas id="trendChart" height="200" class="w-full"></canvas>
+        </div>
+
+        <!-- Row 3: Explainable AI Panel (clean, card-based) -->
+        <div class="glass-card p-6">
+            <div class="flex justify-between items-center flex-wrap gap-3 mb-4">
+                <h3 class="text-xl font-semibold">🔍 Explainable AI – What Factors Drive the Prediction?</h3>
+                <button id="explainBtn" class="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-full text-sm font-medium transition">Refresh Explanation</button>
+            </div>
+            <div id="explanationPanel" class="space-y-3">
+                <!-- Explanations will appear here as cards -->
+                <div class="text-gray-400 text-center py-4">Click refresh to see an easy‑to‑understand breakdown of the main factors affecting current AQI.</div>
+            </div>
+            <p class="text-xs text-gray-400 mt-3 text-center">💡 Each factor’s current value and its contribution explained in plain language.</p>
+        </div>
+    </div>
+
+    <!-- MAP PAGE -->
+    <div id="map" class="page container mx-auto px-4 py-6 max-w-7xl">
+        <h1 class="text-2xl font-bold mb-3">🗺️ Spatial AQI Prediction Map</h1>
+        <div id="map-container"></div>
+        <div class="text-center text-gray-400 text-sm mt-2">Click anywhere on map to predict AQI at that location (based on current sensor values).</div>
+    </div>
+
+    <!-- FORECAST PAGE -->
+    <div id="forecast" class="page container mx-auto px-4 py-6 max-w-7xl">
+        <h1 class="text-2xl font-bold mb-3">📈 7‑Day AQI Forecast with Uncertainty</h1>
+        <div class="glass-card p-6"><canvas id="forecastChart" height="250"></canvas></div>
+        <div class="text-sm text-gray-400 mt-2">Shaded region = prediction interval (ensemble variance).</div>
+    </div>
+
+    <!-- HEALTH PAGE -->
+    <div id="health" class="page container mx-auto px-4 py-6 max-w-7xl">
+        <h1 class="text-2xl font-bold mb-3">❤️ Personalized Health Risk Assessment</h1>
+        <div class="glass-card p-6">
+            <div class="grid md:grid-cols-2 gap-6">
+                <div><label class="block font-medium mb-1">Age Group</label><select id="ageGroup" class="bg-gray-800 rounded-lg p-2 w-full"><option>adult</option><option>child</option><option>elderly</option></select></div>
+                <div><label class="block font-medium mb-1">Respiratory Condition</label><input type="checkbox" id="respCond" class="mt-2 w-5 h-5"></div>
+                <div><label class="block font-medium mb-1">Cardiac Condition</label><input type="checkbox" id="cardCond" class="mt-2 w-5 h-5"></div>
+                <div class="flex items-end"><button id="updateHealthBtn" class="bg-emerald-600 hover:bg-emerald-700 px-5 py-2 rounded-full">Update Risk Score</button></div>
+            </div>
+            <div id="healthOutput" class="mt-6 p-5 rounded-xl bg-black/30">
+                <p class="mb-2">Risk Score: <span id="riskScore" class="font-bold text-lg">--</span> (0 = low risk, 1 = high risk)</p>
+                <p>Advice: <span id="healthAdvice">--</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHAT BOT WIDGET -->
+    <div class="chat-widget" id="chatWidget">
+        <div class="chat-header" id="chatHeader">
+            <span>💬 AQI Assistant (AI Chat)</span>
+            <span>▼</span>
+        </div>
+        <div class="chat-body">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot-message">Hello! I'm your AQI intelligence assistant. Ask me anything about current air quality, health impacts, or forecasts.</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" class="chat-input" placeholder="e.g., Is it safe to go outside?">
+                <button id="chatSendBtn" class="chat-send">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        //  ENHANCED DASHBOARD – CLEAN, USER‑FRIENDLY, FULLY FUNCTIONAL
+        // ============================================================
+
+        let currentEnv = {
+            pm25: 142,
+            pm10: 165,
+            no2: 44,
+            co: 870,
+            temp: 26.8,
+            humidity: 68,
+            wind: 6.5
+        };
+
+        function estimateAQI(env) {
+            let base = (env.pm25 * 0.65) + (env.pm10 * 0.22);
+            let tempEffect = (env.temp < 12) ? 12 : (env.temp > 35 ? 14 : 0);
+            let humidEffect = (env.humidity > 85) ? 10 : (env.humidity < 30 ? 12 : 0);
+            let windEffect = (env.wind < 3) ? 8 : (env.wind > 15 ? -5 : 0);
+            let aqi = base + tempEffect + humidEffect + windEffect;
+            if (env.pm25 > 180) aqi += 18;
+            if (env.pm10 > 220) aqi += 15;
+            return Math.min(500, Math.max(0, Math.round(aqi)));
+        }
+
+        async function getPrediction(env) {
+            try {
+                const res = await fetch("http://127.0.0.1:8000/predict", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(env)
+                });
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                return {
+                    aqi: data.aqi,
+                    category: data.category,
+                    uncertainty: data.uncertainty || 10
+                };
+            } catch {
+                const aqi = estimateAQI(env);
+                let category = "Moderate";
+                if (aqi <= 50) category = "Good";
+                else if (aqi <= 100) category = "Moderate";
+                else if (aqi <= 200) category = "Poor";
+                else category = "Hazardous";
+                return {
+                    aqi,
+                    category,
+                    uncertainty: 12
+                };
+            }
+        }
+
+        function updateSensorValues() {
+            currentEnv.pm25 = Math.min(500, Math.max(15, currentEnv.pm25 + (Math.random() - 0.5) * 3.2));
+            currentEnv.pm10 = Math.min(500, Math.max(15, currentEnv.pm10 + (Math.random() - 0.5) * 3.0));
+            currentEnv.temp = Math.min(45, Math.max(-5, currentEnv.temp + (Math.random() - 0.5) * 0.6));
+            currentEnv.humidity = Math.min(100, Math.max(20, currentEnv.humidity + (Math.random() - 0.5) * 2.2));
+            currentEnv.wind = Math.min(35, Math.max(0, currentEnv.wind + (Math.random() - 0.5) * 1.0));
+            currentEnv.no2 = Math.min(200, Math.max(10, currentEnv.no2 + (Math.random() - 0.5) * 2));
+            currentEnv.co = Math.min(2000, Math.max(300, currentEnv.co + (Math.random() - 0.5) * 15));
+
+            document.getElementById('pm25Value').innerHTML = Math.round(currentEnv.pm25) + " µg/m³";
+            document.getElementById('pm10Value').innerHTML = Math.round(currentEnv.pm10) + " µg/m³";
+            document.getElementById('no2Value').innerHTML = Math.round(currentEnv.no2) + " µg/m³";
+            document.getElementById('coValue').innerHTML = Math.round(currentEnv.co) + " mg/m³";
+            document.getElementById('tempValue').innerHTML = currentEnv.temp.toFixed(1) + " °C";
+            document.getElementById('humidityValue').innerHTML = Math.round(currentEnv.humidity) + " %";
+            document.getElementById('windValue').innerHTML = currentEnv.wind.toFixed(1) + " kph";
+        }
+
+        function drawGauge(aqi) {
+            const canvas = document.getElementById('aqiGaugeCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = 260,
+                h = 260;
+            canvas.width = w;
+            canvas.height = h;
+            const cx = w / 2,
+                cy = h / 2,
+                rad = 110;
+            const start = -0.5 * Math.PI,
+                end = 1.5 * Math.PI;
+            const percent = Math.min(1, aqi / 500);
+            const currentEnd = start + (end - start) * percent;
+            ctx.clearRect(0, 0, w, h);
+            ctx.beginPath();
+            ctx.arc(cx, cy, rad, start, end);
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+            ctx.lineWidth = 20;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx, cy, rad, start, currentEnd);
+            let color = aqi <= 50 ? '#10b981' : (aqi <= 100 ? '#facc15' : (aqi <= 200 ? '#f97316' : '#ef4444'));
+            ctx.strokeStyle = color;
+            ctx.stroke();
+        }
+
+        let trendChart = null;
+        async function refreshDashboard() {
+            updateSensorValues();
+            const pred = await getPrediction(currentEnv);
+            const aqi = pred.aqi;
+            document.getElementById('predictedAQIValue').innerText = Math.round(aqi);
+            document.getElementById('uncertaintyValue').innerHTML = `±${Math.round(pred.uncertainty)}`;
+            document.getElementById('aqiCategoryBadge').innerHTML = `Status: ${pred.category}`;
+            const safe = aqi <= 100;
+            const safetyDiv = document.getElementById('safetyIndicator');
+            safetyDiv.className = `safety-badge ${safe ? 'safety-safe' : 'safety-unsafe'}`;
+            safetyDiv.innerHTML = safe ? '<span>✅</span><span>SAFE</span>' : '<span>⚠️</span><span>UNSAFE</span>';
+            document.getElementById('updateTimestamp').innerHTML = `Updated: ${new Date().toLocaleTimeString()}`;
+            drawGauge(aqi);
+
+            const hours = Array.from({
+                length: 24
+            }, (_, i) => i + ":00");
+            let mean = [],
+                upper = [];
+            for (let i = 0; i < 24; i++) {
+                let variation = Math.sin(i * Math.PI / 12) * 6;
+                let base = aqi + variation - 2;
+                mean.push(Math.min(500, Math.max(0, base)));
+                upper.push(Math.min(500, Math.max(0, base + pred.uncertainty)));
+            }
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (trendChart) trendChart.destroy();
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: hours,
+                    datasets: [{
+                        label: 'Predicted AQI',
+                        data: mean,
+                        borderColor: '#10b981',
+                        fill: false,
+                        tension: 0.3
+                    }, {
+                        label: 'Uncertainty Band',
+                        data: upper,
+                        borderColor: 'transparent',
+                        backgroundColor: 'rgba(16,185,129,0.2)',
+                        fill: '+1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    elements: {
+                        point: {
+                            radius: 0
+                        }
+                    }
+                }
+            });
+        }
+
+        // Enhanced Explainable AI with easy descriptions
+        async function refreshExplanation() {
+            const panel = document.getElementById('explanationPanel');
+            panel.innerHTML = '<div class="text-gray-400 text-center">🔄 Analyzing current factors...</div>';
+            const pred = await getPrediction(currentEnv);
+            const aqi = pred.aqi;
+
+            const factors = [{
+                name: "PM2.5",
+                value: currentEnv.pm25,
+                desc: `Fine particles that cause respiratory issues. Current level ${Math.round(currentEnv.pm25)} µg/m³ – ${currentEnv.pm25 > 60 ? "significantly worsening AQI." : "within moderate range."}`
+            }, {
+                name: "PM10",
+                value: currentEnv.pm10,
+                desc: `Coarse dust particles. ${Math.round(currentEnv.pm10)} µg/m³ – ${currentEnv.pm10 > 100 ? "high contribution to poor air quality." : "moderate contribution."}`
+            }, {
+                name: "Temperature",
+                value: currentEnv.temp,
+                desc: currentEnv.temp < 15 ? `Cool (${currentEnv.temp.toFixed(1)}°C) traps pollutants near ground.` : currentEnv.temp > 35 ? `Heat (${currentEnv.temp.toFixed(1)}°C) accelerates chemical reactions.` : `Moderate temperature – not a major driver.`
+            }, {
+                name: "Humidity",
+                value: currentEnv.humidity,
+                desc: currentEnv.humidity > 80 ? `High humidity (${Math.round(currentEnv.humidity)}%) helps form haze, raising AQI.` : currentEnv.humidity < 30 ? `Dry air (${Math.round(currentEnv.humidity)}%) allows more particulates to stay airborne.` : `Optimal humidity – helps keep pollutants dispersed.`
+            }, {
+                name: "Wind Speed",
+                value: currentEnv.wind,
+                desc: currentEnv.wind < 4 ? `Calm wind (${currentEnv.wind.toFixed(1)} kph) allows pollutants to accumulate, worsening AQI.` : currentEnv.wind > 12 ? `Strong wind (${currentEnv.wind.toFixed(1)} kph) disperses pollutants, improving air quality.` : `Gentle wind – limited effect on pollution.`
+            }];
+
+            let html = `<div class="explanation-card"><div class="explanation-title">🎯 Current AQI: ${aqi} (${pred.category})</div><div class="explanation-desc">These factors are influencing the prediction:</div></div>`;
+            for (let f of factors) {
+                html += `<div class="explanation-card"><div class="explanation-title">🌱 ${f.name} (value: ${f.value.toFixed(1)}${f.name.includes("PM") ? " µg/m³" : f.name==="Temperature"?"°C":f.name==="Humidity"?"%":" kph"})</div><div class="explanation-desc">${f.desc}</div></div>`;
+            }
+            html += `<div class="explanation-card"><div class="explanation-title">💡 Quick action</div><div class="explanation-desc">${aqi <= 50 ? "Air is clean – enjoy outdoor activities." : aqi <= 100 ? "Sensitive groups: reduce prolonged outdoor exposure." : aqi <= 200 ? "Unhealthy – wear N95 mask outdoors, limit exertion." : "Hazardous – stay indoors with air purifiers."}</div></div>`;
+            panel.innerHTML = html;
+        }
+
+        // Map, Forecast, Health (same as before)
+        let mapInstance = null;
+
+        function initMap() {
+            if (mapInstance) return;
+            mapInstance = L.map('map-container').setView([28.6139, 77.2090], 11);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: 'Map data © OpenStreetMap'
+            }).addTo(mapInstance);
+            mapInstance.on('click', async(e) => {
+                const lat = e.latlng.lat,
+                    lng = e.latlng.lng;
+                try {
+                    const res = await fetch("http://127.0.0.1:8000/spatial_predict", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            points: [{
+                                lat,
+                                lon: lng,
+                                ...currentEnv
+                            }]
+                        })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const aqi = data.predictions[0].aqi;
+                        L.marker([lat, lng]).bindPopup(`Predicted AQI: ${aqi}`).addTo(mapInstance);
+                    } else throw new Error();
+                } catch {
+                    const aqi = estimateAQI(currentEnv);
+                    L.marker([lat, lng]).bindPopup(`Estimated AQI: ${aqi}`).addTo(mapInstance);
+                }
+            });
+            const stations = [
+                [28.6139, 77.2090, "Delhi ITO"],
+                [28.5355, 77.3910, "Noida"],
+                [28.4595, 77.0266, "Gurugram"]
+            ];
+            stations.forEach(s => L.marker([s[0], s[1]]).bindPopup(s[2]).addTo(mapInstance));
+        }
+
+        let forecastChart = null;
+        async function updateForecastPage() {
+            const days = ['Today', 'Day2', 'Day3', 'Day4', 'Day5', 'Day6', 'Day7'];
+            let means = [],
+                uppers = [];
+            for (let i = 0; i < 7; i++) {
+                const pred = await getPrediction(currentEnv);
+                means.push(pred.aqi);
+                uppers.push(pred.aqi + pred.uncertainty);
+            }
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+            if (forecastChart) forecastChart.destroy();
+            forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: days,
+                    datasets: [{
+                        label: 'AQI',
+                        data: means,
+                        borderColor: '#f97316',
+                        fill: false,
+                        tension: 0.2
+                    }, {
+                        label: 'Uncertainty',
+                        data: uppers,
+                        borderColor: 'transparent',
+                        backgroundColor: 'rgba(249,115,22,0.2)',
+                        fill: '+1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 500
+                        }
+                    }
+                }
+            });
+        }
+
+        async function updateHealth() {
+            const pred = await getPrediction(currentEnv);
+            const aqi = pred.aqi;
+            const age = document.getElementById('ageGroup').value;
+            const resp = document.getElementById('respCond').checked;
+            const cardiac = document.getElementById('cardCond').checked;
+            let base = 0;
+            if (aqi > 50) base = 0.2;
+            if (aqi > 100) base = 0.6;
+            if (aqi > 200) base = 0.9;
+            let mult = 1;
+            if (age === 'child') mult *= 1.4;
+            if (age === 'elderly') mult *= 1.6;
+            if (resp) mult *= 1.5;
+            if (cardiac) mult *= 1.3;
+            let risk = Math.min(1, base * mult);
+            let advice = risk < 0.2 ? "Safe for outdoor activities." : risk < 0.5 ? "Limit prolonged exposure, mask if sensitive." : risk < 0.8 ? "Avoid outdoor exertion, use air purifier." : "EXTREMELY HAZARDOUS! Stay indoors.";
+            document.getElementById('riskScore').innerText = risk.toFixed(2);
+            document.getElementById('healthAdvice').innerText = advice;
+        }
+
+        // Chat bot
+        async function askBot(question) {
+            const pred = await getPrediction(currentEnv);
+            const aqi = pred.aqi;
+            const safe = aqi <= 100;
+            const lower = question.toLowerCase();
+            if (lower.includes("aqi") || lower.includes("air quality")) return `Current AQI is ${aqi} (${pred.category}). ${safe ? "Generally safe." : "Unhealthy, especially for sensitive groups."}`;
+            if (lower.includes("health") || lower.includes("safe to go out") || lower.includes("outside")) {
+                if (aqi <= 50) return "✅ Safe for everyone.";
+                if (aqi <= 100) return "⚠️ Moderate – reduce prolonged exertion if sensitive.";
+                if (aqi <= 200) return "🟠 Unhealthy – avoid outdoor activity, wear N95.";
+                return "🔴 Hazardous – stay indoors, use air purifiers.";
+            }
+            if (lower.includes("summary")) return `AQI: ${aqi} (${pred.category}), PM2.5: ${Math.round(currentEnv.pm25)}, PM10: ${Math.round(currentEnv.pm10)}, Temp: ${currentEnv.temp.toFixed(1)}°C, Humidity: ${Math.round(currentEnv.humidity)}%. ${safe?"OK to go out? Yes, but sensitive groups be careful.":"Not safe for outdoor activity."}`;
+            return "Ask me about current AQI, safety, PM2.5, or weather.";
+        }
+
+        const chatDiv = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('chatSendBtn');
+
+        function addMessage(msg, isUser) {
+            const d = document.createElement('div');
+            d.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            d.innerText = msg;
+            chatDiv.appendChild(d);
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        }
+        async function sendMsg() {
+            const m = chatInput.value.trim();
+            if (!m) return;
+            addMessage(m, true);
+            chatInput.value = '';
+            addMessage(await askBot(m), false);
+        }
+        sendBtn.addEventListener('click', sendMsg);
+        chatInput.addEventListener('keypress', e => e.key === 'Enter' && sendMsg());
+        const header = document.getElementById('chatHeader');
+        let open = true;
+        header.onclick = () => {
+            open = !open;
+            document.getElementById('chatWidget').classList.toggle('chat-closed', !open);
+            header.innerHTML = open ? '<span>💬 AQI Assistant (AI Chat)</span><span>▼</span>' : '<span>💬 AQI Assistant (AI Chat)</span><span>▲</span>';
+        };
+
+        // Navigation
+        function showPage(id) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+            document.querySelector(`.nav-links a[data-page="${id}"]`).classList.add('active');
+            if (id === 'map') setTimeout(() => {
+                if (!mapInstance) initMap();
+                else mapInstance.invalidateSize();
+            }, 100);
+            if (id === 'forecast') updateForecastPage();
+            if (id === 'health') updateHealth();
+        }
+        document.querySelectorAll('.nav-links a').forEach(a => a.addEventListener('click', (e) => {
+            e.preventDefault();
+            showPage(a.dataset.page);
+        }));
+        document.getElementById('explainBtn').addEventListener('click', refreshExplanation);
+        document.getElementById('updateHealthBtn').addEventListener('click', updateHealth);
+
+        refreshDashboard();
+        refreshExplanation();
+        setInterval(refreshDashboard, 5000);
+        setInterval(updateForecastPage, 15000);
+    </script>
+</body>
+
+</html>
